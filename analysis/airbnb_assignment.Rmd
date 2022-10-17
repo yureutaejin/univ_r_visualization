@@ -1,0 +1,175 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggmap)
+library(maps)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+raw_dataframe = read.csv("./preprocessing_dataframe.csv")
+raw_dataframe
+```
+
+```{r}
+
+# price가 200인 부분에 값이 가장 많이 분포
+ggplot(data=raw_dataframe, mapping=aes(x=price))+
+  theme_bw()+
+  geom_freqpoly(col="skyblue")
+```
+
+
+```{r}
+# state 별로 색을 구분지어서 density function을 그렸지만 인지하기 어려움.
+# 대부분 200부근에 분포되어있음.
+
+ggplot(data=raw_dataframe,mapping=aes(x = price,y=..density..,colour=state))+
+  theme_bw()+   #배경색 없애기
+  geom_freqpoly() 
+
+```
+
+```{r}
+# 값이 너무 많아 boxplot 인식 불가
+temp_dataframe = raw_dataframe
+
+ggplot(data=temp_dataframe)+
+  geom_boxplot(mapping=aes(x = reorder(state,price,FUN=median),y=price,alpha=0.5,fill=state),show.legend ="F")+
+  theme_bw()+
+  xlab("state")+
+  ylab("price")+
+  coord_flip()
+```
+
+```{r}
+# outlier 제외 price 2500이하만 본다면 LA가 NY에 비해 미세하게 더 비싼 것을 알 수 있다.
+temp_dataframe$price <- ifelse(temp_dataframe$price > 2500, NA, temp_dataframe$price)
+
+ggplot(data=temp_dataframe)+
+  geom_boxplot(mapping=aes(x = reorder(state,price,FUN=median),y=price,alpha=0.5,fill=state),show.legend ="F")+
+  theme_bw()+
+  xlab("state")+
+  ylab("price")+
+  coord_flip()
+```
+
+```{r}
+# LA 지역의 airbnb 호스트가 NY보다 많음
+
+ggplot(data=raw_dataframe)+
+  geom_bar(mapping=aes(x=state),fill=c(2,"orange"))+
+  theme_bw()
+```
+
+```{r}
+register_google(key="AIzaSyBnh0DdmzZX-9KXs0A_9Wo57KHb-iW8-NU")
+
+#NY
+newyork = raw_dataframe %>%
+  filter(state=="NY")
+location1 <- c(mean(newyork$longitude), mean(newyork$latitude))
+
+#LA
+losangel = raw_dataframe %>%
+  filter(state=="LA")
+location2 <- c(mean(losangel$longitude), mean(losangel$latitude))
+
+
+
+# mapping
+map1 <- get_map(location = location1, zoom =11  , source = "google", maptype ="roadmap" ) #지도배경
+ggmap(map1) + geom_point(data=newyork,mapping=aes(x=longitude,y=latitude,alpha=0.01,color=price,size=price))+  #가격에 따른 색과 크기 지정
+			scale_color_gradient( low = '#99FF33', high = "#006633")+
+            scale_size_area()  
+
+#LA
+map2 <- get_map(location = location2, zoom =11  , source = "google", maptype ="roadmap" )
+ggmap(map2) + geom_point(data=losangel,mapping=aes(x=longitude,y=latitude,alpha=0.1,color=price,size=price))+
+			scale_color_gradient( low = '#99FF33', high = "#006633")+
+  			scale_size_area()
+
+
+# location missing value가 아니라면 LA 북서쪽에 airbnb 호스트가 몰려있음을 알 수 있다.
+# NY은 중앙 지역에 밀집해 있으며 북쪽에 비싼 호스트들이 있음을 알 수 있다.
+
+```
+
+```{r}
+###super_host###
+###막대그래프를 이용한 super host의 수###
+ggplot(data=raw_dataframe)+
+  geom_bar(mapping=aes(x=host_is_superhost))
+#superhost가 더 적다.
+
+###막대그래프를 이용한 super host의 신분보증 여부###
+ggplot(data=raw_dataframe)+
+  geom_bar(mapping=aes(x=host_is_superhost,fill=host_identity_verified))
+
+# super host의 비율 중 보증이 되어있는 비율이 많음을 알 수 있다.
+```
+
+```{r}
+###상자그림을 이용한 host_response_rate분포###
+ggplot(data=raw_dataframe)+
+  geom_boxplot(mapping=aes(x=host_is_superhost,y=host_response_rate))
+
+#super host는 응답을 매우 잘하는 것을 알 수 있다.
+
+#상자그림을 이용한 host_review_rating분포###
+ggplot(data=raw_dataframe)+
+  geom_boxplot(mapping=aes(x=host_is_superhost,y=review_scores_rating))
+
+# super host의 review rating이 더 좋은 것을 볼 수 있다.
+
+```
+
+```{r}
+###막대그래프를 이용한 host_response_time의 분포###
+h_s<-ggplot(data=raw_dataframe)+
+  geom_bar(mapping=aes(x=host_response_time,alpha=0.9,fill=host_response_time))+
+  theme_bw()
+h_s+scale_fill_brewer(palette=4)
+
+#within an hour이 압도적으로 많음을 알 수 있다.(응답시간이 매우 빠르다.)
+```
+
+```{r}
+###super host 여부에 따른 가격 상자그림으로 그리기###
+ggplot(data=raw_dataframe)+
+  geom_boxplot(mapping=aes(x=host_is_superhost,y=price))
+
+# super host는 가격과 연관성이 크지 않은 듯하다.
+
+
+```
+
+```{r}
+###room_type##
+###막대그래프를 이용한 room_type의 수###
+ggplot(data=raw_dataframe)+
+  geom_bar(mapping=aes(x=room_type,fill=room_type,alpha=0.5))+
+  theme_bw()
+
+###room_type에 따른 가격 상자그림으로 그리기###
+ggplot(data=raw_dataframe)+
+  geom_boxplot(mapping=aes(x=room_type,y=price,fill=room_type,color=room_type,alpha=0.5))+
+  theme_bw()
+#entire home/apt가 가장 많다. 그다음은 priveate room type이 많다.
+```
+
